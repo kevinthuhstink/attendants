@@ -1,3 +1,4 @@
+open Lwt
 open Cohttp
 open Cohttp_lwt_unix
 
@@ -46,29 +47,66 @@ let fetch_people (db: Sqlite3.db) (status: string): person list =
   ignore (Sqlite3.finalize stmt);
   results
 
+let upsert_person (db: Sqlite3.db) (p: person): unit =
+  let stmt = Sqlite3.prepare db "INSERT OR REPLACE INTO people (name, status) VALUES (?, ?)" in
+  ignore (Sqlite3.bind_text stmt 1 p.name);
+  ignore (Sqlite3.bind_text stmt 2 p.status);
+  ignore (Sqlite3.step stmt);
+  ignore (Sqlite3.finalize stmt);
+  ()
+
 let jsonify (body: Yojson.Safe.t) =
   let json_body = Yojson.Safe.to_string body in
   let headers = Header.init_with "Content-Type" "application/json" in
-  Printf.printf "%s\n" json_body;
-  flush stdout;
   Server.respond_string ~status:`OK ~headers ~body:json_body ()
 
-let handle_request (meth: Code.meth) path _body =
+let handle_request (meth: Code.meth) path body =
   match (meth, path) with
   | (`GET, "/") ->
       let db = open_db () in
-      let people = fetch_people db "confirmed" in
-      let people_json = `List (List.map person_to_assoc people)
+      let confirmed = fetch_people db "confirmed" in
+      let unknown = fetch_people db "unknown" in
+      let unlikely = fetch_people db "unlikely" in
       ignore (Sqlite3.db_close db);
-      jsonify (`Assoc [("confirmed", people_json)])
-  | (`PUT, "/")
+      let confirmed_json = `List (List.map person_to_assoc confirmed) in
+      let unknown_json = `List (List.map person_to_assoc unknown) in
+      let unlikely_json = `List (List.map person_to_assoc unlikely) in
+      jsonify (`Assoc [
+        ("confirmed", confirmed_json);
+        ("unknown", unknown_json);
+        ("unlikely", unlikely_json);
+      ])
+  | (`PUT, "/") ->
+      Cohttp_lwt.Body.to_string body >>= fun body_string ->
+      let json = Yojson.Safe.from_string body_string in
+      let name =
+        match json with
+        | `Assoc assoc ->
+            (List.assoc "name" assoc |> function
+             | `String s -> s
+             | _ -> failwith "name must be a string")
+        | _ -> failwith "Expected JSON object"
+      in
+      let status =
+        match json with
+        | `Assoc assoc ->
+            (List.assoc "status" assoc |> function
+             | `String s -> s
+             | _ -> failwith "status must be a string")
+        | _ -> failwith "Expected JSON object"
+      in
+      let p = { name; seen=false; flaker=false; status } in
+      let db = open_db () in
+      upsert_person db p;
+      ignore (Sqlite3.db_close db);
+      jsonify (`Assoc [("status", `String "success")])
   | (`DELETE, "/") ->
       jsonify (`Assoc [("status", `String "success")])
   | _ ->
       Server.respond_string ~status:`Not_found ~body:"404 Not Found" ()
 
 let start_server =
-  let port = 
+  let port =
     match Sys.getenv_opt "ATTENDANTS_PORT" with
     | Some port -> int_of_string port
     | None -> 7921
