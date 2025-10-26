@@ -9,6 +9,7 @@ depends: [
   "cohttp-lwt-unix"
   "lwt"
   "yojson"
+  "sqlite3"
   "odoc" {with-doc}
 ]
 build: [

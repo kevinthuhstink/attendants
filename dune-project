@@ -11,5 +11,5 @@
 
 (package
  (name attendants)
- (depends ocaml cohttp-lwt-unix lwt yojson)
+ (depends ocaml cohttp-lwt-unix lwt yojson sqlite3)
  )

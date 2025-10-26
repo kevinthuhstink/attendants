@@ -1,4 +1,4 @@
 (library
  (name attendants)
- (libraries cohttp-lwt-unix lwt yojson)
+ (libraries cohttp-lwt-unix lwt yojson sqlite3)
  )
