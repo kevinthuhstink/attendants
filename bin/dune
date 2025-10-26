@@ -1,0 +1,4 @@
+(executable
+ (public_name attendants)
+ (name main)
+ (libraries attendants))

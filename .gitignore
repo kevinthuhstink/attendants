@@ -1,0 +1,5 @@
+_build/
+*.install
+*.db
+*.merlin
+_opam/

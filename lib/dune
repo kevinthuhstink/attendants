@@ -1,0 +1,4 @@
+(library
+ (name attendants)
+ (libraries cohttp-lwt-unix lwt yojson)
+ )
