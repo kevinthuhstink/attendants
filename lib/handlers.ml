@@ -4,9 +4,9 @@ let get (): Yojson.Safe.t =
   let unknown = Db.fetch_people db "unknown" in
   let unlikely = Db.fetch_people db "unlikely" in
   ignore (Sqlite3.db_close db);
-  let confirmed_json = `List (List.map Db.person_to_assoc confirmed) in
-  let unknown_json = `List (List.map Db.person_to_assoc unknown) in
-  let unlikely_json = `List (List.map Db.person_to_assoc unlikely) in
+  let confirmed_json = `List (List.map (fun s -> `String s) confirmed) in
+  let unknown_json = `List (List.map (fun s -> `String s) unknown) in
+  let unlikely_json = `List (List.map (fun s -> `String s) unlikely) in
   `Assoc [
     ("confirmed", confirmed_json);
     ("unknown", unknown_json);
@@ -14,9 +14,8 @@ let get (): Yojson.Safe.t =
   ]
 
 let put (name: string) (status: string): Yojson.Safe.t =
-  let p: Db.person = { name; seen=false; flaker=false; status } in
   let db = Db.open_db () in
-  Db.upsert_person db p;
+  Db.upsert_person db name status;
   ignore (Sqlite3.db_close db);
   `Assoc [("status", `String "success")]
 
