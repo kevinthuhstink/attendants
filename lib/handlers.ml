@@ -13,9 +13,9 @@ let get (): Yojson.Safe.t =
     ("unlikely", unlikely_json);
   ]
 
-let put (name: string) (status: string): Yojson.Safe.t =
+let put (names: string list) (status: string): Yojson.Safe.t =
   let db = Db.open_db () in
-  Db.upsert_person db name status;
+  List.iter (fun name -> Db.upsert_person db name status) names;
   ignore (Sqlite3.db_close db);
   `Assoc [("status", `String "success")]
 

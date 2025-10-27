@@ -7,29 +7,45 @@ let jsonify (body: Yojson.Safe.t) =
   let headers = Header.init_with "Content-Type" "application/json" in
   Server.respond_string ~status:`OK ~headers ~body:json_body ()
 
+let parse_put (json: Yojson.Safe.t): (string * string list) =
+  let fail = fun (emsg: string) ->
+    print_endline ("PUT /: " ^ emsg);
+    failwith emsg
+  in
+  match json with
+  | `Assoc fields ->
+      let status =
+        match List.assoc "status" fields with
+        | `String s -> s
+        | _ -> fail "field \"status\" must be a string"
+        | exception Not_found -> fail "field \"status\" required"
+      in
+      begin
+        match List.assoc "names" fields with
+        | `List names ->
+          let names_l = List.map (function
+            | `String s -> s
+            | _ -> fail "field \"names\" must be a string[]"
+          ) names in (status, names_l)
+        | exception Not_found ->
+            begin
+              match List.assoc "name" fields with
+              | `String name -> (status, [name])
+              | exception Not_found -> fail "field \"names\" or \"name\" is required"
+              | _ -> fail "Expected either \"names\" string[] or \"name\" string"
+            end
+        | _ -> fail "field \"names\" must be a string[]"
+      end
+  | _ -> fail "Invalid JSON structure"
+
 let handle_request (meth: Code.meth) path body =
   match (meth, path) with
   | (`GET, "/") -> jsonify (Handlers.get ())
   | (`PUT, "/") ->
       Cohttp_lwt.Body.to_string body >>= fun body_string ->
       let json = Yojson.Safe.from_string body_string in
-      let name =
-        match json with
-        | `Assoc assoc ->
-            (List.assoc "name" assoc |> function
-             | `String s -> s
-             | _ -> failwith "name must be a string")
-        | _ -> failwith "Expected JSON object"
-      in
-      let status =
-        match json with
-        | `Assoc assoc ->
-            (List.assoc "status" assoc |> function
-             | `String s -> s
-             | _ -> failwith "status must be a string")
-        | _ -> failwith "Expected JSON object"
-      in
-      jsonify (Handlers.put name status)
+      let status, names = parse_put json in
+      jsonify (Handlers.put names status)
   | (`DELETE, "/") -> jsonify (Handlers.delete ())
   | _ ->
       Server.respond_string ~status:`Not_found ~body:"404 Not Found" ()
