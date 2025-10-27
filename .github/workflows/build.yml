@@ -1,0 +1,56 @@
+name: build attendants
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: define image name
+      run: |
+        IMAGE_NAME="ghcr.io/$(echo ${{ github.repository }} | tr '[A-Z]' '[a-z]')"
+        echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
+
+    - name: build attendants
+      run: docker build . -t attendants-image
+
+    - name: ghcr.io login
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: push image
+      run: |
+        docker tag attendants-image $IMAGE_NAME:${{ github.sha }}
+        docker push $IMAGE_NAME:${{ github.sha }}
+
+  deploy:
+    if: ${{ github.event_name == 'push' }}
+    needs: build
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+    - name: define image name
+      run: |
+        IMAGE_NAME="ghcr.io/$(echo ${{ github.repository }} | tr '[A-Z]' '[a-z]')"
+        echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
+
+    - name: ghcr.io login
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: retag with latest
+      run: |
+        docker pull $IMAGE_NAME:${{ github.sha }}
+        docker tag $IMAGE_NAME:${{ github.sha }} $IMAGE_NAME:latest
+        docker push $IMAGE_NAME:latest
