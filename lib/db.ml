@@ -40,7 +40,7 @@ let upsert_person (db: Sqlite3.db) (name: string) (status: string): unit =
   ()
 
 let reset (db: Sqlite3.db): unit =
-  let stmt = Sqlite3.prepare db "UPDATE people SET status = 'absent', seen = 1" in
+  let stmt = Sqlite3.prepare db "UPDATE people SET status = 'absent'" in
   ignore (Sqlite3.step stmt);
   ignore (Sqlite3.finalize stmt);
   ()

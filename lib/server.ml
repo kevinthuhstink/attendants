@@ -11,6 +11,17 @@ let json_response (body: Yojson.Safe.t) =
   let headers = Header.init_with "Content-Type" "application/json" in
   Server.respond_string ~status:`OK ~headers ~body:json_body ()
 
+let json_unauthenticated =
+  let json_body = Yojson.Safe.to_string (`Assoc [("status", `String "failure"); ("reason", `String "unauthenticated")]) in
+  let headers = Header.init_with "Content-Type" "application/json" in
+  Server.respond_string ~status:`Unauthorized ~headers ~body:json_body ()
+
+let validate_auth headers =
+  let auth = Sys.getenv "ATTENDANTS_AUTH" in
+  match Header.get headers "Authorization" with
+  | Some h -> String.equal auth h
+  | _ -> false
+
 let parse_put (json: Yojson.Safe.t): (string * string list) =
   let fail = fun (emsg: string) ->
     print_endline ("PUT /: " ^ emsg);
@@ -42,19 +53,31 @@ let parse_put (json: Yojson.Safe.t): (string * string list) =
       end
   | _ -> fail "Invalid JSON structure"
 
-let handle_request (meth: Code.meth) path body =
+let handle_request (meth: Code.meth) path headers body =
   match (meth, path) with
   | (`GET, "/") -> text_response (Handlers.get ())
   | (`PUT, "/") ->
-      Cohttp_lwt.Body.to_string body >>= fun body_string ->
-      let json = Yojson.Safe.from_string body_string in
-      let status, names = parse_put json in
-      json_response (Handlers.put names status)
-  | (`DELETE, "/") -> json_response (Handlers.delete ())
+      if
+        validate_auth headers
+      then
+        Cohttp_lwt.Body.to_string body >>= fun body_string ->
+        let json = Yojson.Safe.from_string body_string in
+        let status, names = parse_put json in
+        json_response (Handlers.put names status)
+      else
+        json_unauthenticated
+  | (`DELETE, "/") ->
+      if
+        validate_auth headers
+      then
+        json_response (Handlers.delete ())
+      else
+        json_unauthenticated
   | _ ->
       Server.respond_string ~status:`Not_found ~body:"404 Not Found" ()
 
 let start_server =
+  ignore (Sys.getenv "ATTENDANTS_AUTH");
   let port =
     match Sys.getenv_opt "ATTENDANTS_PORT" with
     | Some port -> int_of_string port
@@ -64,7 +87,8 @@ let start_server =
     let meth = Request.meth req in
     let uri = Request.uri req in
     let path = Uri.path uri in
-    handle_request meth path body
+    let headers = Request.headers req in
+    handle_request meth path headers body
   in
   let config = Server.make ~callback () in
   Printf.printf "Server running on http://localhost:%d/\n" port;
