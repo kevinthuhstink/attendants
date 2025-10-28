@@ -2,7 +2,11 @@ open Lwt
 open Cohttp
 open Cohttp_lwt_unix
 
-let jsonify (body: Yojson.Safe.t) =
+let text_response (body: string) =
+  let headers = Header.init_with "Content-Type" "text/plain" in
+  Server.respond_string ~status:`OK ~headers ~body ()
+
+let json_response (body: Yojson.Safe.t) =
   let json_body = Yojson.Safe.to_string body in
   let headers = Header.init_with "Content-Type" "application/json" in
   Server.respond_string ~status:`OK ~headers ~body:json_body ()
@@ -40,13 +44,13 @@ let parse_put (json: Yojson.Safe.t): (string * string list) =
 
 let handle_request (meth: Code.meth) path body =
   match (meth, path) with
-  | (`GET, "/") -> jsonify (Handlers.get ())
+  | (`GET, "/") -> text_response (Handlers.get ())
   | (`PUT, "/") ->
       Cohttp_lwt.Body.to_string body >>= fun body_string ->
       let json = Yojson.Safe.from_string body_string in
       let status, names = parse_put json in
-      jsonify (Handlers.put names status)
-  | (`DELETE, "/") -> jsonify (Handlers.delete ())
+      json_response (Handlers.put names status)
+  | (`DELETE, "/") -> json_response (Handlers.delete ())
   | _ ->
       Server.respond_string ~status:`Not_found ~body:"404 Not Found" ()
 
