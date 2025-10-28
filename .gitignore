@@ -1,6 +1,7 @@
 tags
 _build/
 *.install
+db/
 *.db
 *.merlin
 _opam/

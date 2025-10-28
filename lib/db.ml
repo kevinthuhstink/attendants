@@ -1,5 +1,12 @@
+let make_db_dir (): unit =
+  if not (Sys.file_exists "db" && Sys.is_directory "db") then
+    Sys.mkdir "db" 0o755
+  else
+    ()
+
 let open_db (): Sqlite3.db =
-  let db = Sqlite3.db_open "attendants.db" in
+  make_db_dir ();
+  let db = Sqlite3.db_open "db/attendants.db" in
   let sql = {|
     CREATE TABLE IF NOT EXISTS people (
       name TEXT PRIMARY KEY,
